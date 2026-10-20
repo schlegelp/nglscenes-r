@@ -1,0 +1,103 @@
+# Coming from Python
+
+This package is a port of the core of the Python package
+[nglscenes](https://github.com/schlegelp/nglscenes). The concepts are
+the same but the API follows R conventions.
+
+## The main differences
+
+- **Copy-on-modify:** Python modifies scenes and layers in place
+  (`scene.add_layers(layer)`), R returns modified copies
+  (`sc <- ngs_add_layers(sc, layer)`).
+- **Functions instead of methods:** methods become `ngs_`-prefixed
+  functions that take the scene or layer as first argument.
+- **1-based indexing:** layers are referred to by name or by position
+  starting at 1. Negative indices are not supported.
+- **Segment IDs** are character vectors, because R can’t represent
+  64-bit integers exactly as numbers.
+- **Not ported:** `LocalScene` (live sync with a local neuroglancer
+  server), local mesh/skeleton layers and the local data server.
+
+## Translation table
+
+| Python | R |
+|----|----|
+| `Scene()` | [`ngs_scene()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_scene.md) |
+| `Scene(base_url=...)` | `ngs_scene(base_url = ...)` |
+| `scene.base_url = url` | `ngs_base_url(sc) <- url` |
+| `Scene.from_url(url)` | `ngs_from_url(url)` |
+| `Scene.from_string(s)` | `ngs_from_string(s)` |
+| `Scene.from_dict(d)` | `ngs_from_list(x)` |
+| `Scene.from_file(fp)` | `ngs_from_file(path)` |
+| `Scene.from_clipboard()` | [`ngs_from_clipboard()`](https://schlegelp.github.io/nglscenes-r/reference/read-scenes.md) |
+| `Scene.from_pandas(df)` | `ngs_from_df(df)` |
+| `scene.url` / `scene.make_url()` | `ngs_url(sc)` |
+| `scene.to_json()` | `ngs_to_json(sc)` |
+| `scene.as_dict()` | `as.list(sc)` |
+| `scene.to_file(fp)` | `ngs_to_file(sc, path)` |
+| `scene.to_clipboard()` | `ngs_to_clipboard(sc)` |
+| `scene.open()` | `ngs_open(sc)` |
+| `scene["layout"] = "3d"` | `sc$layout <- "3d"` |
+| `scene.add_layers(l1, l2)` | `sc <- ngs_add_layers(sc, l1, l2)` |
+| `scene.drop_layer("name")` | `sc <- ngs_drop_layer(sc, "name")` |
+| `scene.move_layer("name", 0)` | `sc <- ngs_move_layer(sc, "name", 1)` |
+| `scene.layers["name"]` | `ngs_layer(sc, "name")` |
+| `scene.layers[0]` | `ngs_layer(sc, 1)` or `sc$layers[[1]]` |
+| `scene.for_viewer("seunglab")` | `ngs_for_viewer(sc, "seunglab")` |
+| `scene1 + scene2`, `scene1 \| scene2` | `sc1 + sc2`, `sc1 \| sc2` |
+| `ImageLayer(source=...)` | `ngs_image_layer(source)` |
+| `SegmentationLayer(source=...)` | `ngs_segmentation_layer(source)` |
+| `AnnotationLayer()` | [`ngs_annotation_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layers.md) |
+| `MeshLayer(source=...)` | `ngs_mesh_layer(source)` |
+| `GrapheneSegmentationLayer(source=...)` | `ngs_graphene_layer(source)` |
+| `FlyWireSegmentationLayer()` | [`ngs_flywire_layer()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_graphene_layer.md) |
+| `FancSegmentationLayer()` | [`ngs_fanc_layer()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_graphene_layer.md) |
+| `layer["segments"] = [...]` | `layer$segments <- ...` |
+| `layer["segments"] += [...]` | `ngs_add_segments(layer, ...)` |
+| `layer.set_colors(c)` | `ngs_set_colors(layer, c)` |
+| `layer.color_by(x, palette)` | `ngs_color_by(layer, x, palette)` |
+| `layer.clear_colors()` | `ngs_clear_colors(layer)` |
+| `layer.invert()` | `ngs_invert(layer)` |
+| `layer.add_subsource(s)` | `ngs_add_source(layer, s)` |
+| `layer.as_flavour(f)` / `layer.flavour` | `ngs_as_flavour(layer, f)` / `ngs_flavour(layer)` |
+| `AnnotationLayer.from_pandas(df)` | `ngs_add_points(ngs_annotation_layer(), df)` |
+| `layer.add_points(p)` | `ngs_add_points(layer, p)` |
+| `layer.clear_annotations()` | `ngs_clear_annotations(layer)` |
+| `layer.to_pandas()` | `as.data.frame(layer)` |
+| `SegmentProperties(ids)` | `ngs_segment_properties(ids)` |
+| `SegmentProperties.from_pandas(df)` | `ngs_properties_from_df(df)` |
+| `SegmentProperties.from_url(url)` | `ngs_properties_from_url(url)` |
+| `SegmentProperties.from_dict(d)` | `ngs_properties_from_list(x)` |
+| `props.add_property(data, name)` | `ngs_add_property(props, values, name)` |
+| `props.properties` | `ngs_property_types(props)` |
+| `props.to_info(fp)` | `ngs_write_info(props, path)` |
+| `props.to_pandas()` | `as.data.frame(props)` |
+| `examples.HemibrainScene()` | [`ngs_hemibrain_scene()`](https://schlegelp.github.io/nglscenes-r/reference/example-scenes.md) |
+| `examples.MancScene()` | [`ngs_manc_scene()`](https://schlegelp.github.io/nglscenes-r/reference/example-scenes.md) |
+
+## Editing layers inside a scene
+
+In Python, `scene.layers["seg"]` returns the layer object itself, so
+editing it edits the scene. In R you either use the replacement form of
+[`ngs_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layer-management.md):
+
+``` r
+
+library(nglscenes)
+sc <- ngs_scene(ngs_segmentation_layer("precomputed://gs://x/seg", name = "seg"))
+ngs_layer(sc, "seg")$selectedAlpha <- 0.3
+```
+
+or pass the scene to the helpers, picking the layer with `layer`:
+
+``` r
+
+sc <- ngs_add_segments(sc, c("1", "2"), layer = "seg")
+sc <- ngs_set_colors(sc, "red", layer = "seg")
+```
+
+## Same JSON
+
+Both packages write keys in sorted order and use the shortest number
+representations, so the same scene gives the same JSON (and URL) in R
+and Python.

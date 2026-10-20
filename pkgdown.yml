@@ -1,0 +1,10 @@
+pandoc: 3.8.3
+pkgdown: 2.2.1
+pkgdown_sha: ~
+articles:
+  nglscenes: nglscenes.html
+  articles/python: python.html
+last_built: 2026-10-20T10:38Z
+urls:
+  reference: https://schlegelp.github.io/nglscenes-r/reference
+  article: https://schlegelp.github.io/nglscenes-r/articles

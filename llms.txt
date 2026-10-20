@@ -1,0 +1,253 @@
+# nglscenes
+
+Generate and manipulate
+[neuroglancer](https://github.com/google/neuroglancer) scenes from R.
+This is an R port of the core of the Python package
+[nglscenes](https://github.com/schlegelp/nglscenes).
+
+## Features
+
+- read scenes from URLs (including state servers such as CAVE’s), JSON
+  strings, files or the clipboard
+- construct and manipulate layers, segments, colours and annotations
+- combine and merge scenes
+- convert graphene (CAVE) layers between neuroglancer flavours (mainline
+  / Spelunker vs. Seung-lab)
+- write scenes to URLs, JSON, files or the clipboard
+- create segment properties
+
+Scenes round-trip unchanged: parsing a scene and writing it back gives
+the same state (and the same JSON as the Python package).
+
+## Install
+
+``` r
+
+# install.packages("remotes")
+remotes::install_github("schlegelp/nglscenes-r")
+```
+
+## Usage
+
+Scenes and layers are plain R lists (the JSON state) with a class
+attached. All functions return modified copies, so they work well with
+pipes.
+
+### Construct a scene
+
+``` r
+
+library(nglscenes)
+
+sc <- ngs_scene(
+  ngs_image_layer("precomputed://gs://neuroglancer-fafb-data/fafb_v14/fafb_v14_clahe"),
+  ngs_segmentation_layer("precomputed://gs://fafb-ffn1-20200412/segmentation",
+                         segments = c("710435991", "720575940621039145")),
+  ngs_annotation_layer("precomputed://gs://neuroglancer-20191211_fafbv14_buhmann2019_li20190805"),
+  layout = "3d"
+)
+sc
+#> <ngs_scene> 3 layers: 1 image, 1 segmentation, 1 annotation
+#> Base URL: https://neuroglancer-demo.appspot.com/
+#> 1: <image layer> "img" precomputed://gs://neuroglancer-fafb-data/fafb_v14/fafb_v14_clahe
+#> 2: <segmentation layer> "segmentation" precomputed://gs://fafb-ffn1-20200412/segmentation (2 segments)
+#> 3: <annotation layer> "annotations" precomputed://gs://neuroglancer-20191211_fafbv14_buhmann2019_li20190805
+
+ngs_url(sc)     # URL with the state encoded
+ngs_open(sc)    # open in the browser
+ngs_to_clipboard(sc)
+```
+
+### Manipulate a scene
+
+``` r
+
+sc <- ngs_from_clipboard()   # or ngs_from_url(url), ngs_from_file(path), ...
+
+# Top-level fields
+sc$layout <- "xy-3d"
+sc$position <- c(109357, 41309, 5417)
+
+# Layers by name or (1-based) position
+ngs_layer_names(sc)
+ngs_layer(sc, 1)$visible <- FALSE
+
+sc <- sc |>
+  ngs_drop_layer("annotations") |>
+  ngs_move_layer("segmentation", 1)
+
+# Helpers work on layers and on scenes: with a scene, `layer` picks the
+# layer (or is omitted if there is only one layer of the right type)
+sc <- sc |>
+  ngs_add_segments(c("12345", "67890"), layer = "segmentation") |>
+  ngs_color_by(c("A", "B", "A", "B"), palette = "Okabe-Ito",
+               layer = "segmentation")
+```
+
+Segment IDs are 64-bit integers, which R can’t represent as numbers.
+They are always stored as character: numbers (or
+[`bit64::integer64`](https://bit64.r-lib.org/reference/bit64-package.html))
+are converted when set.
+
+### Combine scenes
+
+``` r
+
+# `+` adds all layers of the second scene
+comb <- sc1 + sc2
+
+# `|` merges layers with the same source (e.g. combines selected segments)
+merged <- sc1 | sc2
+```
+
+### Graphene (CAVE) layers
+
+``` r
+
+fw <- ngs_scene(ngs_flywire_layer(segments = "720575940621039145"),
+                base_url = "https://spelunker.cave-explorer.org/")
+
+# Convert for the Seung-lab flavour of neuroglancer (e.g. ngl.flywire.ai)
+fw2 <- ngs_for_viewer(fw, "seunglab")
+ngs_base_url(fw2) <- "https://ngl.flywire.ai/"
+```
+
+Scenes stored on CAVE state servers need a token, see
+[`?ngs_cave_token`](https://schlegelp.github.io/nglscenes-r/reference/ngs_cave_token.md).
+
+### Segment properties
+
+``` r
+
+df <- data.frame(id = c(1, 2, 3),
+                 name = c("DA1_lPN", "DA1_lPN", "KCg"),
+                 size = c(10.5, 12, 3),
+                 class = factor(c("PN", "PN", "KC")))
+props <- ngs_properties_from_df(df)
+ngs_write_info(props, "segment_properties/info")
+```
+
+## Differences to the Python package
+
+- Copy-on-modify instead of in-place modification:
+  `sc <- ngs_add_layers(sc, layer)`.
+- Layers are indexed from 1. Use names or positions; negative indices
+  are not supported.
+- `LocalScene` (live sync with a local neuroglancer server) and the
+  local data server are not ported.
+
+# Package index
+
+## Scenes
+
+Create scenes and manage their layers.
+
+- [`ngs_scene()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_scene.md)
+  : Create a scene
+- [`ngs_add_layers()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_add_layers.md)
+  : Add layers to a scene
+- [`ngs_layer_names()`](https://schlegelp.github.io/nglscenes-r/reference/layer-management.md)
+  [`ngs_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layer-management.md)
+  [`` `ngs_layer<-`() ``](https://schlegelp.github.io/nglscenes-r/reference/layer-management.md)
+  [`ngs_drop_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layer-management.md)
+  [`ngs_move_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layer-management.md)
+  : Get, replace or remove layers
+- [`ngs_base_url()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_base_url.md)
+  [`` `ngs_base_url<-`() ``](https://schlegelp.github.io/nglscenes-r/reference/ngs_base_url.md)
+  : Base URL of a scene
+
+## Reading and writing scenes
+
+- [`ngs_from_string()`](https://schlegelp.github.io/nglscenes-r/reference/read-scenes.md)
+  [`ngs_from_url()`](https://schlegelp.github.io/nglscenes-r/reference/read-scenes.md)
+  [`ngs_from_list()`](https://schlegelp.github.io/nglscenes-r/reference/read-scenes.md)
+  [`ngs_from_file()`](https://schlegelp.github.io/nglscenes-r/reference/read-scenes.md)
+  [`ngs_from_clipboard()`](https://schlegelp.github.io/nglscenes-r/reference/read-scenes.md)
+  : Read scenes
+- [`ngs_from_df()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_from_df.md)
+  : Create a scene from a data frame of segments
+- [`ngs_url()`](https://schlegelp.github.io/nglscenes-r/reference/write-scenes.md)
+  [`ngs_to_json()`](https://schlegelp.github.io/nglscenes-r/reference/write-scenes.md)
+  [`ngs_to_file()`](https://schlegelp.github.io/nglscenes-r/reference/write-scenes.md)
+  [`ngs_to_clipboard()`](https://schlegelp.github.io/nglscenes-r/reference/write-scenes.md)
+  [`ngs_open()`](https://schlegelp.github.io/nglscenes-r/reference/write-scenes.md)
+  : Write scenes
+- [`ngs_cave_token()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_cave_token.md)
+  : Get a CAVE token
+
+## Layers
+
+- [`ngs_image_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layers.md)
+  [`ngs_segmentation_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layers.md)
+  [`ngs_annotation_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layers.md)
+  [`ngs_mesh_layer()`](https://schlegelp.github.io/nglscenes-r/reference/layers.md)
+  : Create layers
+- [`ngs_parse_layers()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_parse_layers.md)
+  : Parse layer states into layers
+- [`ngs_add_source()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_add_source.md)
+  : Add a source to a layer
+
+## Segmentation layers
+
+These helpers accept a segmentation layer or a scene. For scenes, use
+`layer` to pick the layer.
+
+- [`ngs_segments()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_segments.md)
+  [`ngs_add_segments()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_segments.md)
+  [`ngs_remove_segments()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_segments.md)
+  : Selected segments
+- [`ngs_set_colors()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_set_colors.md)
+  : Set segment colours
+- [`ngs_color_by()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_color_by.md)
+  : Colour segments by a property
+- [`ngs_clear_colors()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_clear_colors.md)
+  : Clear segment colours
+- [`ngs_invert()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_invert.md)
+  : Invert segment selection
+
+## Graphene (CAVE) layers
+
+- [`ngs_graphene_layer()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_graphene_layer.md)
+  [`ngs_flywire_layer()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_graphene_layer.md)
+  [`ngs_fanc_layer()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_graphene_layer.md)
+  : Graphene segmentation layers
+- [`ngs_as_flavour()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_as_flavour.md)
+  [`ngs_flavour()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_as_flavour.md)
+  [`ngs_for_viewer()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_as_flavour.md)
+  : Convert graphene layers between neuroglancer flavours
+
+## Annotation layers
+
+- [`ngs_add_points()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_add_points.md)
+  : Add point annotations
+- [`ngs_clear_annotations()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_clear_annotations.md)
+  : Remove all annotations
+- [`as.data.frame(`*`<ngs_annotation_layer>`*`)`](https://schlegelp.github.io/nglscenes-r/reference/as.data.frame.ngs_annotation_layer.md)
+  : Point annotations as data frame
+
+## Segment properties
+
+- [`ngs_segment_properties()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_segment_properties.md)
+  [`ngs_properties_from_df()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_segment_properties.md)
+  [`ngs_properties_from_url()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_segment_properties.md)
+  [`ngs_properties_from_list()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_segment_properties.md)
+  : Segment properties
+- [`ngs_add_property()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_add_property.md)
+  : Add a segment property
+- [`ngs_property_types()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_property_types.md)
+  : Property types
+- [`ngs_write_info()`](https://schlegelp.github.io/nglscenes-r/reference/ngs_write_info.md)
+  : Write segment properties to an info file
+
+## Example scenes
+
+- [`ngs_hemibrain_scene()`](https://schlegelp.github.io/nglscenes-r/reference/example-scenes.md)
+  [`ngs_manc_scene()`](https://schlegelp.github.io/nglscenes-r/reference/example-scenes.md)
+  : Example scenes
+
+# Articles
+
+### Articles
+
+- [Coming from
+  Python](https://schlegelp.github.io/nglscenes-r/articles/python.md):
