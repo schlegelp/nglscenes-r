@@ -1,0 +1,70 @@
+url: https://schlegelp.github.io/nglscenes-r/
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+
+articles:
+  - title: Articles
+    navbar: ~
+    contents:
+      - articles/python
+
+reference:
+  - title: Scenes
+    desc: Create scenes and manage their layers.
+    contents:
+      - ngs_scene
+      - ngs_add_layers
+      - layer-management
+      - ngs_base_url
+
+  - title: Reading and writing scenes
+    contents:
+      - read-scenes
+      - ngs_from_df
+      - write-scenes
+      - ngs_cave_token
+
+  - title: Layers
+    contents:
+      - layers
+      - ngs_parse_layers
+      - ngs_add_source
+
+  - title: Segmentation layers
+    desc: >
+      These helpers accept a segmentation layer or a scene. For scenes, use
+      `layer` to pick the layer.
+    contents:
+      - ngs_segments
+      - ngs_set_colors
+      - ngs_color_by
+      - ngs_clear_colors
+      - ngs_invert
+
+  - title: Graphene (CAVE) layers
+    contents:
+      - ngs_graphene_layer
+      - ngs_as_flavour
+
+  - title: Annotation layers
+    contents:
+      - ngs_add_points
+      - ngs_clear_annotations
+      - as.data.frame.ngs_annotation_layer
+
+  - title: Segment properties
+    contents:
+      - ngs_segment_properties
+      - ngs_add_property
+      - ngs_property_types
+      - ngs_write_info
+
+  - title: Example scenes
+    contents:
+      - example-scenes

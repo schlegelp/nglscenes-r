@@ -48,3 +48,6 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# pkgdown site (built and deployed by GitHub Actions)
+docs/

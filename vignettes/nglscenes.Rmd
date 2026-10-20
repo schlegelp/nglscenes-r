@@ -1,0 +1,194 @@
+---
+title: "Get started with nglscenes"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Get started with nglscenes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+[Neuroglancer](https://github.com/google/neuroglancer) keeps everything it
+shows (layers, selected segments, camera position, layout and so on) in a
+JSON *state*, usually encoded in the URL. nglscenes reads, builds and edits
+these states from R.
+
+```{r setup}
+library(nglscenes)
+```
+
+## Scenes and layers are lists
+
+A scene is the neuroglancer state as a named list with class `ngs_scene`, and
+each layer is the layer's state with a class such as `ngs_segmentation_layer`.
+You can read and set fields with `$` and `[[` like with any other list:
+
+```{r}
+sc <- ngs_scene(
+  ngs_image_layer("precomputed://gs://neuroglancer-fafb-data/fafb_v14/fafb_v14_clahe",
+                  name = "em"),
+  ngs_segmentation_layer("precomputed://gs://fafb-ffn1-20200412/segmentation",
+                         name = "ffn1", segments = c(710435991, 2803641208)),
+  layout = "3d"
+)
+sc
+
+sc$layout
+sc$layout <- "xy-3d"
+sc$position <- c(109357, 41309, 5417)
+```
+
+All functions return a modified copy rather than changing the scene in place,
+so they work well with pipes.
+
+## Writing scenes
+
+`ngs_url()` encodes the state in a URL for the scene's neuroglancer instance:
+
+```{r}
+url <- ngs_url(sc)
+substr(url, 1, 120)
+```
+
+`ngs_open()` opens that URL in the browser, `ngs_to_clipboard()` copies it,
+and `ngs_to_json()` / `ngs_to_file()` give you the JSON instead.
+
+To use a different neuroglancer instance, change the base URL:
+
+```{r}
+ngs_base_url(sc) <- "https://spelunker.cave-explorer.org/"
+substr(ngs_url(sc), 1, 60)
+```
+
+## Reading scenes
+
+Scenes can be read from URLs (`ngs_from_url()`), JSON strings or state lists
+(`ngs_from_string()`, `ngs_from_list()`), files (`ngs_from_file()`) and the
+clipboard (`ngs_from_clipboard()`). URLs that point to a state server
+(`?json_url=...`, `#!gs://...`, `#!middleauth+https://...`) are fetched
+automatically.
+
+```{r}
+sc2 <- ngs_from_url(url)
+sc2
+```
+
+Parsed scenes round-trip unchanged: writing a scene you have read gives the
+same state back, including fields nglscenes doesn't know about.
+
+```{r}
+identical(ngs_to_json(sc2), ngs_to_json(ngs_from_url(ngs_url(sc2))))
+```
+
+## Managing layers
+
+Layers are referred to by name or by (1-based) position:
+
+```{r}
+ngs_layer_names(sc)
+
+sc <- sc |>
+  ngs_add_layers(ngs_annotation_layer(name = "points")) |>
+  ngs_move_layer("points", 1)
+ngs_layer_names(sc)
+
+ngs_layer(sc, "em")$visible <- FALSE
+sc <- ngs_drop_layer(sc, "points")
+```
+
+Layer names must be unique within a scene: adding a layer whose name is
+taken adds a suffix (e.g. `"ffn1-2"`).
+
+## Segments and colours
+
+Segment IDs are 64-bit integers, which R can't represent exactly as numbers.
+nglscenes therefore always stores them as character, and converts numbers
+(or `bit64::integer64` values) when they are set:
+
+```{r}
+ngs_segments(sc)
+```
+
+The helpers for segmentation layers accept a layer or a scene. With a scene,
+`layer` picks the layer, or can be left out if there is only one
+segmentation layer:
+
+```{r}
+sc <- sc |>
+  ngs_add_segments(c("2803641209", "2803641210")) |>
+  ngs_color_by(c("KC", "PN", "PN", "KC"), palette = "Okabe-Ito")
+
+unlist(ngs_layer(sc, "ffn1")$segmentColors)
+```
+
+`ngs_set_colors()` sets colours directly, from a single colour, one colour per
+segment or colours named by segment ID:
+
+```{r}
+sc <- ngs_set_colors(sc, c("710435991" = "red"), layer = "ffn1")
+```
+
+## Annotations
+
+```{r}
+an <- ngs_annotation_layer(name = "somata") |>
+  ngs_add_points(data.frame(id = c("a", "b"),
+                            x = c(1000, 2000), y = c(500, 600), z = c(10, 20)))
+as.data.frame(an)
+```
+
+## Combining scenes
+
+`+` adds all layers of the second scene to the first, and `|` merges layers
+that share a source (e.g. combines the segments of two segmentation layers)
+and adds the rest:
+
+```{r}
+a <- ngs_scene(ngs_segmentation_layer("precomputed://gs://x/seg", segments = 1:2))
+b <- ngs_scene(ngs_segmentation_layer("precomputed://gs://x/seg", segments = 2:3))
+
+length((a + b)$layers)
+ngs_segments(a | b)
+```
+
+## Graphene (CAVE) layers
+
+Mainline neuroglancer and Spelunker spell CAVE chunkedgraph layers
+differently from the Seung-lab fork (e.g. ngl.flywire.ai), and each refuses
+the other's spelling. `ngs_for_viewer()` converts all graphene layers in a
+scene:
+
+```{r}
+fw <- ngs_scene(ngs_flywire_layer(segments = "720575940621039145"))
+fw$layers[[1]]$type
+
+fw2 <- ngs_for_viewer(fw, "seunglab")
+fw2$layers[[1]]$type
+fw2$layers[[1]]$source
+```
+
+Fetching scenes from CAVE state servers requires a token, see
+`?ngs_cave_token`.
+
+## Segment properties
+
+Segment properties add labels and searchable tags to segments. Create them
+from a data frame and write them to an `info` file next to your
+segmentation:
+
+```{r}
+props <- ngs_properties_from_df(data.frame(
+  id = c(1, 2, 3),
+  name = c("DA1_lPN", "DA1_lPN", "KCg-m"),
+  class = factor(c("PN", "PN", "KC")),
+  size = c(10.5, 12, 3)
+))
+props
+```
+
+```{r, eval = FALSE}
+ngs_write_info(props, "segment_properties/info")
+```

@@ -1,0 +1,37 @@
+Package: nglscenes
+Title: Generate and Manipulate Neuroglancer Scenes
+Version: 0.1.0
+Authors@R:
+    person("Philipp", "Schlegel", email = "pms70@cam.ac.uk",
+           role = c("aut", "cre"))
+Description: Construct, parse, edit and combine 'neuroglancer' scenes
+    (viewer states). Scenes can be read from URLs (including state servers),
+    JSON strings, files or the clipboard; layers, segments, colours and
+    annotations can be manipulated; and scenes can be written back to URLs,
+    JSON, files or the clipboard. Also creates 'neuroglancer' segment
+    properties. R port of the core of the Python package 'nglscenes'.
+License: GPL (>= 3)
+URL: https://github.com/schlegelp/nglscenes-r,
+    https://schlegelp.github.io/nglscenes-r/
+BugReports: https://github.com/schlegelp/nglscenes-r/issues
+Depends:
+    R (>= 4.1.0)
+Imports:
+    clipr,
+    curl,
+    grDevices,
+    httr2,
+    jsonlite,
+    stats,
+    utils
+Suggests:
+    bit64,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    withr
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.0
